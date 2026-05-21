@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>F1Works 모니터링</title>
+    <link rel="icon" type="image/x-icon" href="/logo.ico" />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: 'Segoe UI', 'Noto Sans KR', sans-serif;
+        background: #f0f2f5;
+        color: #1a1a2e;
+      }
+      header {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        color: #fff;
+        padding: 20px 32px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+      header h1 {
+        font-size: 1.4rem;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+      }
+      header span {
+        font-size: 0.85rem;
+        color: #94a3b8;
+        margin-left: auto;
+      }
+
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 28px 16px;
+      }
+
+      /* 섹션 공통 */
+      .section-title {
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #64748b;
+        margin-bottom: 12px;
+      }
+
+      .section-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .section-row .section-title {
+        margin-bottom: 0;
+      }
+
+      .status-header {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+      .status-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 28px;
+      }
+      /* 웹서버 상태 카드 */
+      .status-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 28px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        display: flex;
+        align-items: center;
+        gap: 20px;
+      }
+      .status-indicator {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.6rem;
+        flex-shrink: 0;
+        transition: background 0.4s;
+      }
+      .status-indicator.up {
+        background: #dcfce7;
+      }
+      .status-indicator.down {
+        background: #fee2e2;
+      }
+      .status-indicator.unknown {
+        background: #f1f5f9;
+      }
+      .status-info {
+        flex: 1;
+      }
+      .status-info .server-url {
+        font-size: 0.85rem;
+        color: #64748b;
+        margin-bottom: 4px;
+      }
+      .status-badge {
+        display: inline-block;
+        padding: 3px 12px;
+        border-radius: 99px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        margin-bottom: 6px;
+      }
+      .badge-up {
+        background: #dcfce7;
+        color: #16a34a;
+      }
+      .badge-down {
+        background: #fee2e2;
+        color: #dc2626;
+      }
+      .badge-unknown {
+        background: #f1f5f9;
+        color: #94a3b8;
+      }
+      .last-checked {
+        font-size: 0.78rem;
+        color: #94a3b8;
+      }
+      .btn {
+        padding: 8px 18px;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          opacity 0.15s,
+          transform 0.1s;
+      }
+      .btn:active {
+        transform: scale(0.97);
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .btn-primary {
+        background: #3b82f6;
+        color: #fff;
+      }
+      .btn-primary:hover:not(:disabled) {
+        background: #2563eb;
+      }
+      .btn-danger {
+        background: #ef4444;
+        color: #fff;
+      }
+      .btn-danger:hover:not(:disabled) {
+        background: #dc2626;
+      }
+
+      /* 자동 갱신 토글 */
+      .auto-refresh {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.8rem;
+        color: #64748b;
+      }
+      .toggle {
+        position: relative;
+        width: 36px;
+        height: 20px;
+      }
+      .toggle input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .slider {
+        position: absolute;
+        inset: 0;
+        background: #cbd5e1;
+        border-radius: 99px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .slider::before {
+        content: '';
+        position: absolute;
+        left: 3px;
+        top: 3px;
+        width: 14px;
+        height: 14px;
+        background: #fff;
+        border-radius: 50%;
+        transition: transform 0.2s;
+      }
+      .toggle input:checked + .slider {
+        background: #3b82f6;
+      }
+      .toggle input:checked + .slider::before {
+        transform: translateX(16px);
+      }
+
+      /* 토스트 */
+      #toast-container {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 9999;
+      }
+      .toast {
+        padding: 12px 18px;
+        border-radius: 10px;
+        font-size: 0.83rem;
+        font-weight: 600;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        animation: slideIn 0.25s ease;
+        max-width: 320px;
+      }
+      .toast.success {
+        background: #dcfce7;
+        color: #15803d;
+      }
+      .toast.error {
+        background: #fee2e2;
+        color: #dc2626;
+      }
+      .toast.info {
+        background: #dbeafe;
+        color: #1d4ed8;
+      }
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateX(40px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      .divider {
+        margin: 28px 0;
+        border: none;
+        border-top: 1px solid #e2e8f0;
+      }
+      .status-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      @media (max-width: 600px) {
+        .status-card {
+          flex-wrap: wrap;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>🛠</div>
+      <h1>F1Works 모니터링</h1>
+      <span id="current-time"></span>
+    </header>
+
+    <div class="container">
+      <!-- 웹서버 상태 섹션 -->
+      <div class="section-row">
+        <p class="section-title">운영 웹서버 상태</p>
+        <div class="status-header">
+          <label class="auto-refresh">
+            <label class="toggle">
+              <input type="checkbox" id="auto-refresh-toggle" checked />
+              <span class="slider"></span>
+            </label>
+            자동 갱신 (10분)
+          </label>
+          <button
+            class="btn btn-primary"
+            id="check-now-btn"
+            onclick="checkNow()"
+          >
+            전체 체크
+          </button>
+        </div>
+      </div>
+      <div class="status-list" id="status-list"></div>
+
+      <hr class="divider" />
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script>
+      let autoRefreshTimer = null;
+      let isHealthChecking = false;
+
+      // 현재 시각 표시
+      function updateClock() {
+        const now = new Date();
+        document.getElementById('current-time').textContent =
+          now.toLocaleString('ko-KR', { hour12: false });
+      }
+      updateClock();
+      setInterval(updateClock, 1000);
+
+      // 자동 갱신 토글
+      document
+        .getElementById('auto-refresh-toggle')
+        .addEventListener('change', function () {
+          if (this.checked) startAutoRefresh();
+          else stopAutoRefresh();
+        });
+      function startAutoRefresh() {
+        stopAutoRefresh();
+        autoRefreshTick();
+        autoRefreshTimer = setInterval(autoRefreshTick, 600000);
+      }
+      function stopAutoRefresh() {
+        if (autoRefreshTimer) {
+          clearInterval(autoRefreshTimer);
+          autoRefreshTimer = null;
+        }
+      }
+
+      // 웹서버 상태 조회
+      async function fetchStatus() {
+        try {
+          const res = await fetch(`/api/server-status?ts=${Date.now()}`, {
+            cache: 'no-store',
+          });
+          if (!res.ok) {
+            throw new Error('HTTP ' + res.status);
+          }
+          const data = await res.json();
+          const servers = Array.isArray(data) ? data : [data];
+          updateStatusUI(servers);
+        } catch (e) {
+          console.error('상태 조회 실패:', e);
+        }
+      }
+
+      async function autoRefreshTick() {
+        if (isHealthChecking) {
+          return;
+        }
+        try {
+          await fetch('/api/run/server_health', { method: 'POST' });
+          await new Promise((r) => setTimeout(r, 3000));
+        } catch (e) {
+          console.error('자동 헬스체크 실패:', e);
+        }
+        await fetchStatus();
+      }
+
+      function updateStatusUI(servers) {
+        const list = document.getElementById('status-list');
+        list.innerHTML = servers
+          .map(({ url, status, lastChecked }) => {
+            const cls =
+              status === 'up' ? 'up' : status === 'down' ? 'down' : 'unknown';
+            const icon =
+              status === 'up' ? '✅' : status === 'down' ? '🔴' : '❓';
+            const badgeCls =
+              status === 'up'
+                ? 'badge-up'
+                : status === 'down'
+                  ? 'badge-down'
+                  : 'badge-unknown';
+            const badgeText =
+              status === 'up'
+                ? 'UP — 정상'
+                : status === 'down'
+                  ? 'DOWN — 접속 불가'
+                  : '확인 중';
+            const checkedText = lastChecked
+              ? '마지막 체크: ' +
+                new Date(lastChecked).toLocaleString('ko-KR', { hour12: false })
+              : '마지막 체크: 아직 없음 (다음 체크까지 대기 중)';
+            return `
+              <div class="status-card">
+                <div class="status-indicator ${cls}">${icon}</div>
+                <div class="status-info">
+                  <div class="server-url">${url}</div>
+                  <div><span class="status-badge ${badgeCls}">${badgeText}</span></div>
+                  <div class="last-checked">${checkedText}</div>
+                </div>
+              </div>`;
+          })
+          .join('');
+      }
+
+      // 지금 체크 버튼
+      async function checkNow(showToast = true) {
+        if (isHealthChecking) {
+          return;
+        }
+        isHealthChecking = true;
+        const btn = document.getElementById('check-now-btn');
+        btn.disabled = true;
+        btn.textContent = '체크 중...';
+        try {
+          await fetch('/api/run/server_health', { method: 'POST' });
+          // 헬스체크 완료까지 잠시 대기 후 상태 갱신
+          await new Promise((r) => setTimeout(r, 3000));
+          await fetchStatus();
+          if (showToast) {
+            showToast('웹서버 상태를 확인했습니다.', 'info');
+          }
+        } catch (e) {
+          if (showToast) {
+            showToast('상태 확인 중 오류가 발생했습니다.', 'error');
+          }
+        } finally {
+          isHealthChecking = false;
+          btn.disabled = false;
+          btn.textContent = '전체 체크';
+        }
+      }
+
+      // 토스트 알림
+      function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+      }
+
+      // 초기화
+      fetchStatus();
+      startAutoRefresh();
+    </script>
+  </body>
+</html>
