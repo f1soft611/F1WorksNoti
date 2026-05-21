@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>F1Works 알림 관리자</title>
+    <link rel="icon" type="image/x-icon" href="/logo.ico" />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: 'Segoe UI', 'Noto Sans KR', sans-serif;
+        background: #f0f2f5;
+        color: #1a1a2e;
+      }
+      header {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        color: #fff;
+        padding: 20px 32px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+      header h1 {
+        font-size: 1.4rem;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+      }
+      header span {
+        font-size: 0.85rem;
+        color: #94a3b8;
+        margin-left: auto;
+      }
+
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 28px 16px;
+      }
+      .section-title {
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #64748b;
+        margin-bottom: 12px;
+      }
+      .divider {
+        margin: 28px 0;
+        border: none;
+        border-top: 1px solid #e2e8f0;
+      }
+      .top-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 18px;
+      }
+      .link-btn {
+        background: #e2e8f0;
+        color: #1e293b;
+        padding: 8px 14px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 0.82rem;
+        font-weight: 600;
+      }
+      .link-btn:hover {
+        background: #cbd5e1;
+      }
+
+      .scheduler-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 12px;
+      }
+      .scheduler-card {
+        background: #fff;
+        border-radius: 10px;
+        padding: 16px 18px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+        transition: box-shadow 0.15s;
+      }
+      .scheduler-card:hover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+      }
+      .scheduler-icon {
+        font-size: 1.4rem;
+        width: 36px;
+        text-align: center;
+        flex-shrink: 0;
+      }
+      .scheduler-info {
+        flex: 1;
+      }
+      .scheduler-info .name {
+        font-size: 0.88rem;
+        font-weight: 600;
+      }
+      .scheduler-info .desc {
+        font-size: 0.75rem;
+        color: #94a3b8;
+        margin-top: 2px;
+      }
+      .run-btn {
+        padding: 6px 14px;
+        background: #f1f5f9;
+        color: #3b82f6;
+        border: 1px solid #e2e8f0;
+        border-radius: 7px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          background 0.15s,
+          color 0.15s;
+        flex-shrink: 0;
+      }
+      .run-btn:hover:not(:disabled) {
+        background: #3b82f6;
+        color: #fff;
+        border-color: #3b82f6;
+      }
+      .run-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .run-btn.running {
+        background: #fef3c7;
+        color: #d97706;
+        border-color: #fde68a;
+      }
+      .run-btn.success {
+        background: #dcfce7;
+        color: #16a34a;
+        border-color: #bbf7d0;
+      }
+      .run-btn.error {
+        background: #fee2e2;
+        color: #dc2626;
+        border-color: #fecaca;
+      }
+
+      .manual-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 12px;
+      }
+      .panel {
+        background: #fff;
+        border-radius: 12px;
+        padding: 18px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      }
+      .panel h3 {
+        font-size: 0.92rem;
+        margin-bottom: 12px;
+        color: #1e293b;
+      }
+      .btn-row {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .btn {
+        border: none;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .btn-primary {
+        background: #3b82f6;
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: #2563eb;
+      }
+      .btn-disabled {
+        background: #e2e8f0;
+        color: #94a3b8;
+        cursor: not-allowed;
+      }
+      .text-input {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 10px;
+        font-size: 0.84rem;
+        margin-bottom: 8px;
+      }
+      .btn-danger {
+        background: #ef4444;
+        color: #fff;
+      }
+      .btn-danger:hover {
+        background: #dc2626;
+      }
+      .description {
+        font-size: 0.8rem;
+        color: #64748b;
+        line-height: 1.5;
+      }
+
+      #result {
+        margin-top: 20px;
+        font-size: 0.84rem;
+        color: #334155;
+        background: #fff;
+        border-radius: 10px;
+        padding: 14px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        min-height: 48px;
+      }
+
+      #toast-container {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 9999;
+      }
+      .toast {
+        padding: 12px 18px;
+        border-radius: 10px;
+        font-size: 0.83rem;
+        font-weight: 600;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        animation: slideIn 0.25s ease;
+        max-width: 320px;
+      }
+      .toast.success {
+        background: #dcfce7;
+        color: #15803d;
+      }
+      .toast.error {
+        background: #fee2e2;
+        color: #dc2626;
+      }
+      .toast.info {
+        background: #dbeafe;
+        color: #1d4ed8;
+      }
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateX(40px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      @media (max-width: 600px) {
+        .scheduler-grid,
+        .manual-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>🔔</div>
+      <h1>F1Works 알림 관리자</h1>
+      <span id="current-time"></span>
+    </header>
+
+    <div class="container">
+      <div class="top-actions">
+        <a class="link-btn" href="/monitor">모니터링 화면 이동</a>
+      </div>
+
+      <p class="section-title">스케줄러 즉시 실행</p>
+      <div class="scheduler-grid" id="scheduler-grid"></div>
+
+      <hr class="divider" />
+
+      <p class="section-title">수동 API 실행</p>
+      <div class="manual-grid">
+        <div class="panel">
+          <h3>알림 API</h3>
+          <div class="btn-row">
+            <button class="btn btn-disabled" type="button" disabled>
+              미결재 알림 (비활성화됨)
+            </button>
+            <button class="btn btn-disabled" type="button" disabled>
+              공지 알림 (비활성화됨)
+            </button>
+            <button class="btn btn-disabled" type="button" disabled>
+              출근기록 알림 (비활성화됨)
+            </button>
+            <button
+              class="btn btn-primary"
+              type="button"
+              onclick="fetchTodayMenu()"
+            >
+              오늘의 메뉴 알림
+            </button>
+            <button
+              class="btn btn-primary"
+              type="button"
+              onclick="fetchRestDeInfo()"
+            >
+              공휴일 API
+            </button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>직접 입력 알림</h3>
+          <input
+            type="text"
+            id="notificationText"
+            class="text-input"
+            placeholder="직접 입력한 문구"
+          />
+          <button
+            class="btn btn-danger"
+            type="button"
+            onclick="sendCustomNotification()"
+          >
+            보내기
+          </button>
+          <p class="description" style="margin-top: 12px">
+            알림은 기본적으로 스케줄에 따라 자동 발송됩니다. 비정상 상황에서만
+            수동 호출해 사용하세요.
+          </p>
+        </div>
+      </div>
+
+      <div id="result"></div>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script>
+      const SCHEDULERS = [
+        {
+          id: 'approve_001',
+          icon: '📄',
+          name: '기안 미결재 알림',
+          desc: '기안 문서 미결재/미확인 알림 발송',
+        },
+        {
+          id: 'approve_008',
+          icon: '📋',
+          name: '업무연락 미결재 알림',
+          desc: '업무연락 문서 미결재/미확인 알림 발송',
+        },
+        {
+          id: 'approve_004',
+          icon: '💳',
+          name: '지출결의 미결재 알림',
+          desc: '지출결의 문서 미결재/미확인 알림 발송',
+        },
+        {
+          id: 'approve_031',
+          icon: '🗓',
+          name: '근태신청 미결재 알림',
+          desc: '근태신청 문서 미결재/미확인 알림 발송',
+        },
+        {
+          id: 'notice',
+          icon: '📢',
+          name: '공지 알림',
+          desc: '새 공지사항 알림 발송',
+        },
+        {
+          id: 'attendance',
+          icon: '⏰',
+          name: '출근기록 알림',
+          desc: '미출근자 출근기록 없음 알림 발송',
+        },
+        {
+          id: 'attendance_pending_approval',
+          icon: '✅',
+          name: '근태신청 결재 지연 알림',
+          desc: '근태신청 결재 지연 담당자 알림',
+        },
+        {
+          id: 'food',
+          icon: '🍽',
+          name: '오늘의 메뉴 알림',
+          desc: '식당 메뉴 크롤링 후 알림 발송',
+        },
+        {
+          id: 'expense_claim',
+          icon: '💰',
+          name: '경비청구 알림',
+          desc: '월 첫 평일 경비청구 안내 발송',
+        },
+        {
+          id: 'customer_management_count',
+          icon: '👥',
+          name: '고객관리 현황 알림',
+          desc: '담당자별 고객 현황 알림 발송',
+        },
+        {
+          id: 'news',
+          icon: '📰',
+          name: '뉴스 랭킹',
+          desc: '네이트 뉴스 랭킹 크롤링 실행',
+        },
+        {
+          id: 'server_health',
+          icon: '🔍',
+          name: '웹서버 헬스체크',
+          desc: '웹서버 접속 상태 즉시 확인',
+        },
+      ];
+
+      function updateClock() {
+        const now = new Date();
+        document.getElementById('current-time').textContent =
+          now.toLocaleString('ko-KR', { hour12: false });
+      }
+
+      function displayResult(message) {
+        document.getElementById('result').textContent = message;
+      }
+
+      async function callApi(apiUrl, notificationType) {
+        try {
+          const response = await fetch(apiUrl, { method: 'GET' });
+          if (!response.ok) {
+            throw new Error('HTTP ' + response.status);
+          }
+          const text = await response.text();
+          displayResult(notificationType + ' API 호출 성공: ' + (text || 'OK'));
+          showToast(notificationType + ' API 호출 성공', 'success');
+        } catch (error) {
+          displayResult(notificationType + ' API 호출 실패');
+          showToast(notificationType + ' API 호출 실패', 'error');
+        }
+      }
+
+      function fetchTodayMenu() {
+        callApi('/dietMenu', '오늘의 메뉴');
+      }
+
+      function fetchRestDeInfo() {
+        callApi('/getRestDeInfo', '공휴일');
+      }
+
+      function sendCustomNotification() {
+        const customNotificationText = document
+          .getElementById('notificationText')
+          .value.trim();
+        if (customNotificationText) {
+          displayResult('직접 입력한 알림: ' + customNotificationText);
+          showToast('직접 입력 알림이 작성되었습니다.', 'info');
+        } else {
+          displayResult('알림 문구를 입력해주세요.');
+          showToast('알림 문구를 입력해주세요.', 'error');
+        }
+      }
+
+      function renderSchedulers() {
+        const grid = document.getElementById('scheduler-grid');
+        grid.innerHTML = SCHEDULERS.map(
+          (s) => `
+            <div class="scheduler-card">
+              <div class="scheduler-icon">${s.icon}</div>
+              <div class="scheduler-info">
+                <div class="name">${s.name}</div>
+                <div class="desc">${s.desc}</div>
+              </div>
+              <button class="run-btn" id="btn-${s.id}" onclick="runJob('${s.id}', this)">실행</button>
+            </div>
+          `,
+        ).join('');
+      }
+
+      async function runJob(jobId, btn) {
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.classList.add('running');
+        btn.textContent = '실행 중...';
+
+        try {
+          const res = await fetch('/api/run/' + jobId, { method: 'POST' });
+          const data = await res.json();
+          if (!data.ok) {
+            throw new Error(data.message || '실행 실패');
+          }
+
+          btn.classList.remove('running');
+          btn.classList.add('success');
+          btn.textContent = '완료';
+          showToast(
+            `"${SCHEDULERS.find((s) => s.id === jobId)?.name}" 실행됨`,
+            'success',
+          );
+
+          setTimeout(() => {
+            btn.classList.remove('success');
+            btn.textContent = original;
+            btn.disabled = false;
+          }, 2000);
+        } catch (e) {
+          btn.classList.remove('running');
+          btn.classList.add('error');
+          btn.textContent = '오류';
+          showToast('실행 실패: ' + e.message, 'error');
+
+          setTimeout(() => {
+            btn.classList.remove('error');
+            btn.textContent = original;
+            btn.disabled = false;
+          }, 2500);
+        }
+      }
+
+      function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+      }
+
+      updateClock();
+      setInterval(updateClock, 1000);
+      renderSchedulers();
+      displayResult('스케줄러 즉시 실행은 이 화면에서 사용할 수 있습니다.');
+    </script>
+  </body>
+</html>
