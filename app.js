@@ -8,7 +8,6 @@ import sharp from 'sharp'; // 이미지 처리 라이브러리
 import sql from 'mssql';
 import NewsAPI from 'newsapi';
 import puppeteer from 'puppeteer';
-import VPNManager from './lib/vpn-manager.js';
 
 const newsapi = new NewsAPI('7ed043a7f64043a795f7799708c581e3');
 
@@ -48,42 +47,14 @@ function getHealthCheckUrls() {
   ];
 }
 
-function getVPNRequiredHealthCheckUrls() {
-  const raw = process.env.VPN_REQUIRED_HEALTH_URLS || '';
-
-  if (!raw) return [];
-
-  return [
-    ...new Set(
-      raw
-        .split(',')
-        .map((u) => u.trim())
-        .filter(Boolean),
-    ),
-  ];
-}
-
-function getVPNConfig() {
-  return {
-    gateway: process.env.FORTI_VPN_GATEWAY,
-    username: process.env.FORTI_VPN_USERNAME,
-    password: process.env.FORTI_VPN_PASSWORD,
-    cliPath: process.env.FORTI_VPN_CLI_PATH || 'fortivpn',
-  };
-}
-
 app.get('/api/server-status', function (req, res) {
-  const urls = [
-    ...new Set([...getHealthCheckUrls(), ...getVPNRequiredHealthCheckUrls()]),
-  ];
-  const vpnUrlSet = new Set(getVPNRequiredHealthCheckUrls());
+  const urls = getHealthCheckUrls();
   const result = urls.map((url) => ({
     url,
     status: webServerStatuses[url]?.status || 'unknown',
     lastChecked: webServerStatuses[url]?.lastChecked
       ? webServerStatuses[url].lastChecked.toISOString()
       : null,
-    vpnRequired: webServerStatuses[url]?.vpnRequired ?? vpnUrlSet.has(url),
   }));
   res.json(result);
 });
@@ -101,6 +72,7 @@ app.post('/api/run/:job', async function (req, res) {
     news: () => getNewsRank(),
     attendance_pending_approval: () => notiAttendancePendingApproval(),
     expense_claim: () => notiExpenseClaim(),
+    expense_claim_reminder: () => notiExpenseClaim('expense_claim_reminder'),
     customer_management_count: () => notiCustomerManagementCount(),
     server_health: () => checkWebServerHealth(),
   };
@@ -124,15 +96,9 @@ app.get('/dietMenu', function (req, res) {
 app.listen(app.get('port'), () => {
   console.log(app.get('port'), '번 포트에서 대기중');
 
-  const vpnConfig = getVPNConfig();
-  const hasVpnConfig = Boolean(
-    vpnConfig.gateway && vpnConfig.username && vpnConfig.password,
-  );
-  const vpnManager = hasVpnConfig ? new VPNManager(vpnConfig) : null;
-
   let schedules = {};
-  const attendanceCron = process.env.SCH_TIME3 || '0 9 * * 1-5';
   const expenseCron = process.env.SCH_TIME_EXPENSE || '0 9 * * 1-5';
+  const expenseReminderCron = process.env.SCH_TIME_EXPENSE_REMINDER;
 
   const APPROVE_TYPES = [
     { code: '001', label: '기안' },
@@ -154,7 +120,7 @@ app.listen(app.get('port'), () => {
     console.log('공지 알림 ing~');
     notiNotice();
   });
-  schedules['sch03'] = scheduleJob(attendanceCron, function () {
+  schedules['sch03'] = scheduleJob(process.env.SCH_TIME3, function () {
     console.log('출근기록 알림 ing~');
     notiAttendance();
   });
@@ -175,6 +141,10 @@ app.listen(app.get('port'), () => {
     console.log('경비청구 알림 ing~');
     notiExpenseClaim();
   });
+  schedules['sch09_reminder'] = scheduleJob(expenseReminderCron, function () {
+    console.log('경비청구 리마인드 알림 ing~');
+    notiExpenseClaim('expense_claim_reminder');
+  });
   schedules['sch10'] = scheduleJob('0 9 * * 1', function () {
     console.log('고객관리 카운트 알림 ing~');
     notiCustomerManagementCount();
@@ -184,15 +154,6 @@ app.listen(app.get('port'), () => {
     function () {
       console.log('웹서버 헬스체크 ing~');
       checkWebServerHealth();
-    },
-  );
-  schedules['sch12'] = scheduleJob(
-    process.env.SCH_TIME_HEALTH_VPN ||
-      process.env.SCH_TIME_HEALTH ||
-      '*/10 * * * *',
-    async function () {
-      console.log('VPN 웹서버 헬스체크 ing~');
-      await checkWebServerHealthWithVpn(vpnManager, hasVpnConfig);
     },
   );
 });
@@ -285,6 +246,14 @@ function buildExpenseClaimMessage(now = new Date()) {
   )}`;
 
   return { title, body };
+}
+
+function buildExpenseClaimReminderMessage(now = new Date()) {
+  const base = buildExpenseClaimMessage(now);
+  return {
+    title: '[F1Works] 경비청구 리마인드',
+    body: `${base.body}\n\n※ 리마인드: 매월 10일 안내 메시지입니다.`,
+  };
 }
 
 function buildCustomerManagementMessage(customerRows) {
@@ -1357,7 +1326,7 @@ async function notiCustomerManagementCount() {
   }
 }
 
-async function notiExpenseClaim() {
+async function notiExpenseClaim(notiType = 'expense_claim') {
   const registrationUsers = [];
   let receivers = [];
 
@@ -1382,7 +1351,7 @@ async function notiExpenseClaim() {
       receiverId: user,
     }));
 
-    sendMessageFlow(receivers, 'expense_claim', '');
+    sendMessageFlow(receivers, notiType, '');
   } catch (err) {
     console.log(err.message);
   }
@@ -1502,6 +1471,11 @@ function sendMessageFlow(registrationUsers, notiGbn, url, customMessage) {
       strTitle = expenseMessage.title;
       strBody = expenseMessage.body;
       strUrl = 'https://f1works.netlify.app/works/expense';
+    } else if (notiGbn === 'expense_claim_reminder') {
+      const expenseMessage = buildExpenseClaimReminderMessage();
+      strTitle = expenseMessage.title;
+      strBody = expenseMessage.body;
+      strUrl = 'https://f1works.netlify.app/works/expense';
     } else if (notiGbn === 'attendance_pending_approval') {
       strTitle = '[그룹웨어] 근태신청 미결재 알림';
       strBody = '근태신청 결재가 지연되고 있습니다. 빠른 결재 부탁드립니다.';
@@ -1560,59 +1534,14 @@ async function getServerAlertReceivers() {
   }
 }
 
-async function checkWebServerHealth(urls = getHealthCheckUrls(), options = {}) {
-  const vpnRequired = Boolean(options.vpnRequired);
+async function checkWebServerHealth() {
+  const urls = getHealthCheckUrls();
   for (const url of urls) {
-    await checkSingleServer(url, { vpnRequired });
+    await checkSingleServer(url);
   }
 }
 
-async function checkWebServerHealthWithVpn(vpnManager, hasVpnConfig) {
-  const urls = getVPNRequiredHealthCheckUrls();
-
-  if (urls.length === 0) {
-    return;
-  }
-
-  if (!hasVpnConfig || !vpnManager) {
-    const now = new Date();
-    for (const url of urls) {
-      webServerStatuses[url] = {
-        status: 'down',
-        lastChecked: now,
-        error: 'VPN config is missing',
-        vpnRequired: true,
-      };
-    }
-    console.log('[VPN 헬스체크] VPN 설정 누락');
-    return;
-  }
-
-  let connected = false;
-  try {
-    await vpnManager.connect();
-    connected = true;
-    await checkWebServerHealth(urls, { vpnRequired: true });
-  } catch (err) {
-    const now = new Date();
-    for (const url of urls) {
-      webServerStatuses[url] = {
-        status: 'down',
-        lastChecked: now,
-        error: `VPN connection failed: ${err.message}`,
-        vpnRequired: true,
-      };
-    }
-    console.log('[VPN 헬스체크] 연결 실패:', err.message);
-  } finally {
-    if (connected) {
-      await vpnManager.disconnect();
-    }
-  }
-}
-
-async function checkSingleServer(url, options = {}) {
-  const vpnRequired = Boolean(options.vpnRequired);
+async function checkSingleServer(url) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
   let isUp = false;
@@ -1621,7 +1550,7 @@ async function checkSingleServer(url, options = {}) {
       method: 'GET',
       signal: controller.signal,
     });
-    isUp = response.status >= 200 && response.status < 400;
+    isUp = response.status < 500;
   } catch (err) {
     isUp = false;
   } finally {
@@ -1629,11 +1558,7 @@ async function checkSingleServer(url, options = {}) {
   }
   const prevStatus = webServerStatuses[url]?.status || 'up';
   const currentStatus = isUp ? 'up' : 'down';
-  webServerStatuses[url] = {
-    status: currentStatus,
-    lastChecked: new Date(),
-    vpnRequired,
-  };
+  webServerStatuses[url] = { status: currentStatus, lastChecked: new Date() };
   console.log(`[헬스체크] ${url} → ${currentStatus} (이전: ${prevStatus})`);
   if (currentStatus !== prevStatus) {
     const receivers = await getServerAlertReceivers();

@@ -1,5 +1,24 @@
 # VPN-aware 헬스 체크 시스템 구현 계획
 
+## 2026-05-21 구현 반영 요약
+
+- VPN 연결 성공을 프로세스 실행만으로 추정하지 않고 stdout/stderr/exit 기반으로 판정하도록 `lib/vpn-manager.js`를 보강함.
+- SAML/대화형 로그인 필요 또는 CLI 인자 미지원 시 오류 코드를 구분(`VPN_SAML_REQUIRED`, `VPN_CLI_UNSUPPORTED`)하여 반환함.
+- VPN 헬스체크는 중복 실행을 방지하도록 락(`vpnHealthCheckRunning`)을 도입함.
+- 수동 실행 job을 확장함.
+  - `POST /api/run/server_health`: 일반 URL 헬스체크
+  - `POST /api/run/server_health_vpn`: VPN 대상 URL 헬스체크
+  - `POST /api/run/server_health_all`: 일반 + VPN 전체 헬스체크
+- 자동 연결이 불가한 환경에서는 기존 OS VPN 세션 폴백 모드(`existing-session`)로 헬스체크를 시도하도록 개선함.
+- 상태 API(`/api/server-status`)에 VPN 메타데이터를 포함함.
+  - `vpnMode`, `vpnErrorCode`, `vpnErrorMessage`, `error`
+
+## 검증 결과
+
+- `node --check app.js` 통과
+- `node --check lib/vpn-manager.js` 통과
+- `npm test` 통과 (4/4)
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** FortiVPN 연결이 필요한 운영사이트의 헬스 체크를 자동화하고, VPN 불필요 사이트와 분리하여 독립적으로 스케줄 관리
